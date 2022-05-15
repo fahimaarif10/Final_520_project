@@ -1,0 +1,34 @@
+init_platform();
+ps7_post_config();
+Xil_Out32(XPAR_TRAFFICGEN_0_S00_AXI_BASEADDR, 1);
+Xil_Out32(XPAR_TRAFFICGEN_0_S00_AXI_BASEADDR+0x4, NUM_OF_WORDS);
+Xil_Out32(XPAR_AXI_DMA_0_BASEADDR + OFFSET_S2MM_DMACR, Xil_In32(XPAR_AXI_DMA_0_BASEADDR + OFFSET_S2MM_DMACR) | 0x1001);
+GicConfig = XScuGic_LookupConfig(XPAR_PS7_SCUGIC_0_DEVICE_ID);
+if (NULL == GicConfig)
+{
+return XST_FAILURE;
+}
+int status = XScuGic_CfgInitialize(&InterruptController, GicConfig, GicConfig -> CpuBaseAddress);
+if (status != XST_SUCCESS)
+{
+return XST_FAILURE;
+}
+status = SetupInterruptSystem(&InterruptController);
+if (status != XST_SUCCESS)
+{
+return XST_FAILURE;
+}
+status = XScuGic_Connect(&InterruptController, XPAR_FABRIC_AXI_DMA_0_S2MM_INTROUT_INTR, (Xil_ExceptionHandler)InterruptHandler, NULL);
+if (status != XST_SUCCESS)
+Xil_Out32(XPAR_AXI_DMA_0_BASEADDR+OFFSET_S2MMDA, OFFSET_MEM_WRITE);
+Xil_Out32(XPAR_AXI_DMA_0_BASEADDR+OFFSET_S2MM_LENGTH, 4*NUM_OF_WORDS);
+void InterruptHandler(void)
+{
+//xil_printf("Interrupt triggered\n\r");
+// Clear the interrupt
+Xil_Out32(XPAR_AXI_DMA_0_BASEADDR+OFFSET_S2MM_DMASR, Xil_In32(XPAR_AXI_DMA_0_BASEADDR+OFFSET_S2MM_DMASR) | 0x1000);
+if (++frame_count>FRAME_COUNT_MAX) return;
+//Reprogram DMA transfer parameters
+Xil_Out32(XPAR_AXI_DMA_0_BASEADDR+OFFSET_S2MMDA, OFFSET_MEM_WRITE+4*NUM_OF_WORDS*frame_count);
+Xil_Out32(XPAR_AXI_DMA_0_BASEADDR+OFFSET_S2MM_LENGTH, 4*NUM_OF_WORDS);
+}
